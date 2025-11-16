@@ -9,22 +9,40 @@ from utils.rss_parser import fetch_new_rss_entries
 import logging
 from typing import List
 from dotenv import load_dotenv
+from settings import AccountConfig
 
 class BotLogic:
-    def __init__(self):
+    def __init__(self, account_config: AccountConfig = None):
+        """
+        Initialize bot logic for a specific account.
+        
+        Args:
+            account_config: AccountConfig instance with account credentials and settings
+        """
         # Load environment variables
         load_dotenv()
         self.config = self._load_config()
         
-        # Initialize client and settings
-        self.client = Client()
+        # Store account configuration
+        if account_config is None:
+            # Fallback to legacy mode with environment variables
+            from settings import get_accounts
+            accounts = get_accounts()
+            if not accounts:
+                raise Exception("No valid account configuration found")
+            account_config = accounts[0]
+        
+        self.account_config = account_config
+        
+        # Initialize client with custom PDS URL if provided
+        self.client = Client(base_url=account_config.pds_url)
         self.interval = self.config['bot']['check_interval']
         self.max_retries = self.config['bot']['max_retries']
         self.initial_delay = self.config['bot']['initial_delay']
         
         # Initialize database handler if database checking is enabled
         if self.config['bot']['duplicate_detection']['check_database']:
-            self.db_handler = DatabaseHandler()
+            self.db_handler = DatabaseHandler(account_name=account_config.name)
         else:
             self.db_handler = None
         
@@ -34,6 +52,7 @@ class BotLogic:
             format=self.config['logging']['format']
         )
         self.logger = logging.getLogger(__name__)
+        self.logger.info(f"Initializing bot for account: {account_config.name} (PDS: {account_config.pds_url})")
 
         # Try to log in with exponential backoff
         self._login_with_retries()
@@ -58,10 +77,10 @@ class BotLogic:
         while retries < self.max_retries:
             try:
                 self.client.login(
-                    os.getenv("BLUESKY_USERNAME"),
-                    os.getenv("BLUESKY_PASSWORD")
+                    self.account_config.username,
+                    self.account_config.password
                 )
-                self.logger.info("Logged in successfully!")
+                self.logger.info(f"Logged in successfully as {self.account_config.username}!")
                 return
             except Exception as e:
                 self.logger.error(f"Login attempt {retries + 1} failed: {e}")
@@ -76,7 +95,7 @@ class BotLogic:
     def _get_recent_posts(self) -> List[str]:
         """Fetch recent posts from the account to check for duplicates."""
         try:
-            profile = self.client.get_profile(os.getenv("BLUESKY_USERNAME"))
+            profile = self.client.get_profile(self.account_config.username)
             feed = self.client.get_author_feed(profile.did, limit=self.config['bot']['posts_to_check'])
             # Extract text from each post record
             posts = []
@@ -127,42 +146,43 @@ class BotLogic:
         """Run the bot continuously at the specified interval."""
         while True:
             try:
-                self.logger.info("Fetching new RSS entries...")
+                self.logger.info(f"[{self.account_config.name}] Fetching new RSS entries...")
                 new_entries = fetch_new_rss_entries(
                     self._is_already_posted,
-                    self.config['rss']['min_post_date']
+                    self.config['rss']['min_post_date'],
+                    self.account_config.rss_feed_url
                 )
                 
                 if not new_entries:
-                    self.logger.info("No new entries to post")
+                    self.logger.info(f"[{self.account_config.name}] No new entries to post")
                 else:
-                    self.logger.info(f"Found {len(new_entries)} new entries to post")
+                    self.logger.info(f"[{self.account_config.name}] Found {len(new_entries)} new entries to post")
                 
                 for entry in new_entries:
                     try:
-                        self.logger.info(f"Attempting to post: {entry.title}")
+                        self.logger.info(f"[{self.account_config.name}] Attempting to post: {entry.title}")
                         self.post_handler.post_entry(entry)
                         
                         # Save successful posts to database if enabled
                         if self.config['bot']['duplicate_detection']['check_database']:
                             try:
                                 self.db_handler.save_post(entry.title, entry.published.isoformat())
-                                self.logger.info(f"Successfully saved to database: {entry.title}")
+                                self.logger.info(f"[{self.account_config.name}] Successfully saved to database: {entry.title}")
                             except Exception as e:
-                                self.logger.error(f"Failed to save post to database: {e}")
+                                self.logger.error(f"[{self.account_config.name}] Failed to save post to database: {e}")
                             
-                        self.logger.info(f"Successfully posted: {entry.title}")
+                        self.logger.info(f"[{self.account_config.name}] Successfully posted: {entry.title}")
                         # Add a small delay between posts to avoid rate limits
                         time.sleep(5)
                     except Exception as e:
-                        self.logger.error(f"Error posting entry {entry.title}: {e}")
+                        self.logger.error(f"[{self.account_config.name}] Error posting entry {entry.title}: {e}")
                         continue
 
-                self.logger.info(f"Sleeping for {self.interval} seconds...")
+                self.logger.info(f"[{self.account_config.name}] Sleeping for {self.interval} seconds...")
                 time.sleep(self.interval)
             except Exception as e:
-                self.logger.error(f"Error in main loop: {e}")
-                self.logger.info(f"Sleeping for {self.interval} seconds before retrying...")
+                self.logger.error(f"[{self.account_config.name}] Error in main loop: {e}")
+                self.logger.info(f"[{self.account_config.name}] Sleeping for {self.interval} seconds before retrying...")
                 time.sleep(self.interval)
 
     def __del__(self):

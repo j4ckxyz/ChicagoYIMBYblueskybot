@@ -1,3 +1,17 @@
+# Account Configuration
+# Multiple accounts are supported. Each account can have its own PDS URL.
+# Credentials are loaded from environment variables:
+# - BLUESKY_USERNAME (for single account, or account name from this config)
+# - BLUESKY_PASSWORD (for single account, or account name from this config)
+# - RSS_FEED_URL (for single account, or account name from this config)
+accounts:
+  - name: default  # Account identifier
+    # Custom PDS URL (optional - defaults to https://bsky.social if not specified)
+    # pds_url: "https://bsky.social"
+    # Environment variable prefix (optional - if not specified, uses uppercase account name)
+    # If specified, credentials will be loaded from {prefix}_USERNAME and {prefix}_PASSWORD
+    # env_prefix: "BLUESKY"
+
 # RSS Feed Configuration
 rss:
   min_post_date: "2024-11-13"  # Format: YYYY-MM-DD

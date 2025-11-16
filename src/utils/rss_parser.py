@@ -61,16 +61,17 @@ def fetch_image_url(article_url: str, session: requests.Session) -> str:
         logger.error(f"Error fetching image from {article_url}: {e}")
         return None
 
-def fetch_new_rss_entries(is_posted_check: Callable[[str], bool], min_post_date: str) -> List[RSSEntry]:
+def fetch_new_rss_entries(is_posted_check: Callable[[str], bool], min_post_date: str, rss_feed_url: str) -> List[RSSEntry]:
     """
     Fetch new RSS entries that haven't been posted yet.
     
     Args:
         is_posted_check: Function to check if a title has been posted
         min_post_date: Minimum date string in format 'YYYY-MM-DD'
+        rss_feed_url: URL of the RSS feed to parse
     """
     try:
-        feed = feedparser.parse(os.getenv("RSS_FEED_URL"))
+        feed = feedparser.parse(rss_feed_url)
         if feed.bozo:  # feedparser encountered an error
             logger.error(f"Feed parsing error: {feed.bozo_exception}")
             return []

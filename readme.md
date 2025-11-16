@@ -1,194 +1,193 @@
 # Bluesky RSS Posting Bot
 
-This Python bot automatically posts updates from an RSS feed to your Bluesky feed. It checks the feed regularly, retrieves new articles, and creates posts with clickable links and optional header images. The bot uses a database to avoid duplicate posts by tracking previously posted articles, even across sessions.
+Automatically post articles from an RSS feed to your Bluesky account. The bot checks your RSS feed regularly and posts new articles with images and links.
 
-## Features
-- Automatically fetches and posts new articles from the RSS feed
-- Creates formatted posts with clickable links to articles
-- Smart image handling:
-  - Configurable image posting (can be enabled/disabled)
-  - Configurable image source priorities (og:image, twitter:image, etc.)
-  - Automatically retrieves header images from article pages
-  - Compresses images to meet Bluesky's size requirements
-  - Falls back to text-only posts if image processing fails
-- Robust duplicate prevention:
-  - Configurable duplicate detection strategies
-  - Optional database tracking of posted articles
-  - Optional backup check against recent Bluesky posts
-  - Configurable automatic database synchronization
-- Reliable operation:
-  - Implements exponential backoff for login attempts
-  - Handles rate limits automatically
-  - Includes comprehensive error handling and logging
-- Highly configurable through YAML:
-  - Customizable post format
-  - Customizable check intervals
-  - Adjustable retry settings
-  - Configurable logging levels
-  - Minimum post date filtering
+## What It Does
 
-## Requirements
-- Python 3.8+
-- Libraries:
-  - `requests`
-  - `feedparser`
-  - `beautifulsoup4`
-  - `Pillow`
-  - `atproto`
-  - `python-dotenv`
-  - `pyyaml`
+- Posts new articles from your RSS feed to Bluesky
+- Includes images from articles when available
+- Remembers what you've already posted (no duplicates)
+- Supports multiple Bluesky accounts
+- Works with custom Bluesky servers (PDS)
 
-## Setup Instructions
+## Quick Start
 
-### 1. Clone the Repository
-Clone this repository to your local environment or preferred hosting environment:
+### 1. Get the Code
 
 ```bash
-git clone https://github.com/MisterClean/ChicagoYIMBYblueskybot.git
-cd bluesky-rss-posting-bot
+git clone https://github.com/j4ckxyz/ChicagoYIMBYblueskybot.git
+cd ChicagoYIMBYblueskybot
 ```
 
-### 2. Install Required Libraries
-Install the necessary Python libraries using `pip`:
+### 2. Install Requirements
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Set Up Environment Variables
-Create a `.env` file in the root directory with your credentials:
+### 3. Set Up Your Credentials
+
+Create a file named `.env` in the main folder with your login info:
 
 ```env
-BLUESKY_USERNAME=yourusername@bsky.social
-BLUESKY_PASSWORD=yourpassword
-RSS_FEED_URL=https://example.com/feed
+BLUESKY_USERNAME=yourname.bsky.social
+BLUESKY_PASSWORD=your-app-password
+RSS_FEED_URL=https://yoursite.com/feed
 ```
 
-### 4. Configure Settings
-The bot uses a `config.yaml` file for extensive customization. Here's a comprehensive example with all available options:
+**Important:** Use an [app password](https://bsky.app/settings/app-passwords), not your main password!
 
-```yaml
-# RSS Feed Configuration
-rss:
-  min_post_date: "2024-11-13"  # Format: YYYY-MM-DD
-  image_sources:  # Order determines priority
-    use_og_image: true         # Use OpenGraph image meta tag
-    use_twitter_image: true    # Use Twitter card image meta tag
-    use_wp_post_image: true    # Use WordPress featured image
-    use_first_image: true      # Fallback to first img tag found
-
-# Bot Settings
-bot:
-  check_interval: 600  # seconds
-  max_retries: 5
-  initial_delay: 10
-  posts_to_check: 50
-  include_images: true  # Master switch for image posting
-  post_format: "{title}\n\nRead more: {link}"  # Supports {title} and {link} placeholders
-  duplicate_detection:
-    check_database: true        # Use SQLite database for duplicate checking
-    check_bluesky_backup: true  # Backup check against recent posts
-    auto_sync_to_database: true # Auto-sync posts found on Bluesky to database
-
-# Logging
-logging:
-  level: INFO
-  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-```
-
-#### Configuration Options Explained
-
-##### RSS Settings
-- `min_post_date`: Minimum date for posts to be considered
-- `image_sources`: Configure which image sources to try and in what order
-  - `use_og_image`: Try OpenGraph meta tags
-  - `use_twitter_image`: Try Twitter card meta tags
-  - `use_wp_post_image`: Try WordPress featured image
-  - `use_first_image`: Fall back to first image found in page
-
-##### Bot Settings
-- `check_interval`: Time between RSS feed checks in seconds
-- `max_retries`: Maximum login retry attempts
-- `initial_delay`: Initial delay between retries
-- `posts_to_check`: Number of recent posts to check for duplicates
-- `include_images`: Master switch to enable/disable image posting
-- `post_format`: Template for post text (supports {title} and {link} placeholders)
-- `duplicate_detection`: Configure duplicate post detection strategy
-  - `check_database`: Enable/disable database checking
-  - `check_bluesky_backup`: Enable/disable checking recent Bluesky posts
-  - `auto_sync_to_database`: Enable/disable automatic database synchronization
-
-##### Logging Settings
-- `level`: Logging level (INFO, DEBUG, WARNING, ERROR)
-- `format`: Log message format
-
-### 5. Run the Bot
-Start the bot using:
+### 4. Run the Bot
 
 ```bash
 python src/main.py
 ```
 
-## How It Works
+That's it! The bot will now check your RSS feed every 10 minutes and post new articles.
 
-### Post Creation Process
-1. **RSS Fetching**: Regularly checks the RSS feed for new articles
-2. **Duplicate Detection** (configurable):
-   - Checks SQLite database if enabled
-   - Verifies against recent Bluesky posts if enabled
-   - Optionally syncs posts found on Bluesky to database
-3. **Image Processing** (if enabled):
-   - Attempts to extract header image using configured sources
-   - Compresses image to meet Bluesky's size limits
-   - Gracefully falls back to text-only if image processing fails
-4. **Post Formatting**:
-   - Creates formatted post using configured template
-   - Adds clickable link to article
-   - Attaches processed image if available and enabled
-5. **Error Handling**:
-   - Implements exponential backoff for login attempts
-   - Handles rate limits automatically
-   - Logs all operations for debugging
+---
 
-### Post Format Example
-```
-Article Title
+## Advanced Setup
 
-Read more: https://example.com/article-link
-[Attached Image]
+### Multiple Accounts
+
+Want to post to multiple Bluesky accounts? No problem!
+
+#### Step 1: Update `config.yaml`
+
+Add your accounts to the `accounts` section:
+
+```yaml
+accounts:
+  - name: chicago
+  - name: housing
+  - name: urbanplanning
 ```
 
-## Reliability Features
+#### Step 2: Update `.env` with all account credentials
 
-### Error Handling
-- Exponential backoff for login attempts
-- Automatic retry on rate limits
-- Graceful fallbacks for image processing
-- Comprehensive logging for debugging
+For each account, add credentials with the pattern `ACCOUNTNAME_USERNAME`, `ACCOUNTNAME_PASSWORD`, and `ACCOUNTNAME_RSS_FEED_URL`:
 
-### Duplicate Prevention
-- Configurable primary database check
-- Optional backup check against recent posts
-- Optional automatic database synchronization
-- Configurable number of posts to check
+```env
+# Chicago account
+CHICAGO_USERNAME=chicago.bsky.social
+CHICAGO_PASSWORD=app-password-1
+CHICAGO_RSS_FEED_URL=https://example.com/chicago-feed
 
-### Rate Limit Management
-- Built-in delays between posts
-- Automatic handling of API rate limits
-- Configurable retry settings
+# Housing account
+HOUSING_USERNAME=housing.bsky.social
+HOUSING_PASSWORD=app-password-2
+HOUSING_RSS_FEED_URL=https://example.com/housing-feed
+
+# Urban Planning account
+URBANPLANNING_USERNAME=urbanplanning.bsky.social
+URBANPLANNING_PASSWORD=app-password-3
+URBANPLANNING_RSS_FEED_URL=https://example.com/planning-feed
+```
+
+**Note:** The account name in your `.env` file must be UPPERCASE and match the name in `config.yaml`.
+
+### Custom Bluesky Server (PDS)
+
+If you're using a custom Bluesky server instead of the main bsky.social server:
+
+```yaml
+accounts:
+  - name: myaccount
+    pds_url: "https://my-custom-server.com"
+```
+
+---
+
+## Configuration Options
+
+The `config.yaml` file has many options you can customize:
+
+### Basic Settings
+
+```yaml
+bot:
+  check_interval: 600        # How often to check for new posts (in seconds)
+  include_images: true       # Include images in posts
+  post_format: "{title}\n\nRead more: {link}"  # How posts look
+```
+
+### Image Settings
+
+```yaml
+rss:
+  image_sources:
+    use_og_image: true       # Try OpenGraph images first
+    use_twitter_image: true  # Then try Twitter card images
+    use_wp_post_image: true  # Then try WordPress featured images
+    use_first_image: true    # Finally, use the first image in the article
+```
+
+### Duplicate Detection
+
+```yaml
+bot:
+  duplicate_detection:
+    check_database: true           # Remember posts in a database
+    check_bluesky_backup: true     # Also check recent Bluesky posts
+    auto_sync_to_database: true    # Keep database in sync
+```
+
+---
+
+## Features
+
+✅ **Easy Setup** - Just add your credentials and go  
+✅ **Multiple Accounts** - Run as many accounts as you want  
+✅ **Custom Servers** - Works with any Bluesky PDS  
+✅ **Smart Images** - Automatically finds and includes article images  
+✅ **No Duplicates** - Keeps track of what's already been posted  
+✅ **Reliable** - Auto-retries on errors, handles rate limits  
+✅ **Customizable** - Configure post format, check intervals, and more  
+
+---
 
 ## Troubleshooting
 
-### Common Issues
-- **Login Failures**: The bot will automatically retry with exponential backoff
-- **Image Processing**: Falls back to text-only posts if image processing fails
-- **Database Sync**: Optionally repairs database if posts are found on Bluesky but missing from local storage
-- **Rate Limits**: Handled automatically with configurable delays
+### Bot won't start
+- Make sure you've created a `.env` file with your credentials
+- Check that your RSS feed URL is correct
+- Verify you're using an app password, not your main password
 
-### Logging
-- Configurable logging levels in `config.yaml`
-- Detailed error messages for debugging
-- Operation tracking for monitoring
+### No posts appearing
+- Check the logs for error messages
+- Make sure your RSS feed has new articles
+- Verify your `min_post_date` setting in `config.yaml`
+
+### Images not working
+- Some feeds don't include images - this is normal
+- The bot will post text-only if no image is found
+- You can disable images by setting `include_images: false` in `config.yaml`
+
+### Multiple accounts not working
+- Account names in `.env` must be UPPERCASE
+- Account names in `config.yaml` must be lowercase
+- Make sure each account has all three required variables (USERNAME, PASSWORD, RSS_FEED_URL)
+
+---
+
+## How to Get an App Password
+
+1. Go to your Bluesky settings: https://bsky.app/settings/app-passwords
+2. Click "Add App Password"
+3. Give it a name (like "RSS Bot")
+4. Copy the password and paste it into your `.env` file
+
+**Never use your main account password!**
+
+---
+
+## Requirements
+
+- Python 3.8 or newer
+- A Bluesky account
+- An RSS feed to monitor
 
 ## License
+
 This project is open-source and available under the [MIT License](LICENSE).
