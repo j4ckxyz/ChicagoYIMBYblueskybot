@@ -22,6 +22,16 @@ class PostHandler:
         # Use configured post format, defaulting to original format if not specified
         post_format = config['bot'].get('post_format', "{title}\n\nRead more: {link}")
         
+        # Bluesky has a 300 character limit - truncate title if needed
+        # Calculate how much space we have for the title (300 - format overhead - link length)
+        format_overhead = len(post_format) - len("{title}") - len("{link}")
+        max_title_length = 300 - format_overhead - len(link)
+        
+        if len(title) > max_title_length:
+            # Truncate and add ellipsis
+            title = title[:max_title_length - 1] + "…"
+            logger.warning(f"Title truncated to fit 300 char limit: {title}")
+        
         # Build text with embedded link - find where {link} appears and make it clickable
         formatted_text = post_format.format(title=title, link=link)
         text_builder = client_utils.TextBuilder()
