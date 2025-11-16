@@ -61,12 +61,12 @@ def fetch_image_url(article_url: str, session: requests.Session) -> str:
         logger.error(f"Error fetching image from {article_url}: {e}")
         return None
 
-def fetch_new_rss_entries(is_posted_check: Callable[[str], bool], min_post_date: str, rss_feed_url: str) -> List[RSSEntry]:
+def fetch_new_rss_entries(is_posted_check: Callable[[str, str], bool], min_post_date: str, rss_feed_url: str) -> List[RSSEntry]:
     """
     Fetch new RSS entries that haven't been posted yet.
     
     Args:
-        is_posted_check: Function to check if a title has been posted
+        is_posted_check: Function to check if a title has been posted (takes title and rss_url)
         min_post_date: Minimum date string in format 'YYYY-MM-DD'
         rss_feed_url: URL of the RSS feed to parse
     """
@@ -80,18 +80,25 @@ def fetch_new_rss_entries(is_posted_check: Callable[[str], bool], min_post_date:
         min_date = datetime.strptime(min_post_date, "%Y-%m-%d")
         session = create_session()
 
+        logger.info(f"Checking {len(feed.entries)} entries from RSS feed")
+
         for entry in feed.entries:
             try:
                 title = entry.title
+                rss_url = entry.link
                 published = datetime(*entry.published_parsed[:6])
 
-                # Skip if already posted or too old
+                # Skip if too old
                 if published < min_date:
+                    logger.debug(f"Skipping old entry: {title} (published {published})")
                     continue
-                if is_posted_check(title):
+                    
+                # Skip if already posted (pass both title and URL)
+                if is_posted_check(title, rss_url):
                     logger.debug(f"Skipping already posted entry: {title}")
                     continue
 
+                logger.info(f"New entry found: {title}")
                 # Fetch the image URL from the article page
                 image_url = fetch_image_url(entry.link, session)
                 new_entry = RSSEntry(
@@ -106,8 +113,9 @@ def fetch_new_rss_entries(is_posted_check: Callable[[str], bool], min_post_date:
                 logger.error(f"Error processing entry {getattr(entry, 'title', 'unknown')}: {e}")
                 continue
 
+        logger.info(f"Found {len(new_entries)} new entries to post")
         return new_entries
 
     except Exception as e:
-        logger.error(f"Error fetching RSS feed: {e}")
+        logger.error(f"Error fetching RSS feed: {e}", exc_info=True)
         return []

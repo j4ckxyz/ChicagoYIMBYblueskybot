@@ -101,14 +101,18 @@ class BotLogic:
             posts = []
             for post in feed.feed:
                 try:
-                    if hasattr(post.record, 'text'):
+                    if hasattr(post, 'post') and hasattr(post.post, 'record') and hasattr(post.post.record, 'text'):
+                        posts.append(post.post.record.text.split('\n')[0])
+                    elif hasattr(post.record, 'text'):
                         posts.append(post.record.text.split('\n')[0])
-                except AttributeError:
-                    self.logger.warning(f"Unexpected post structure: {post}")
+                except AttributeError as e:
+                    self.logger.warning(f"Unexpected post structure: {e}")
                     continue
+            
+            self.logger.info(f"[{self.account_config.name}] Extracted {len(posts)} post titles from feed")
             return posts
         except Exception as e:
-            self.logger.error(f"Error fetching recent posts: {e}")
+            self.logger.error(f"Error fetching recent posts: {e}", exc_info=True)
             return []
 
     def run(self):
@@ -124,11 +128,11 @@ class BotLogic:
                     self.logger.info(f"[{self.account_config.name}] Fetched {len(recent_posts)} recent posts for duplicate checking")
                 
                 # Create a wrapper function that uses the cached recent_posts
-                def is_already_posted_wrapper(title: str) -> bool:
+                def is_already_posted_wrapper(title: str, rss_url: str = None) -> bool:
                     try:
-                        # Check database if enabled
+                        # Check database if enabled (by URL first, then title)
                         if self.config['bot']['duplicate_detection']['check_database']:
-                            if self.db_handler.is_posted(title):
+                            if self.db_handler.is_posted(rss_url=rss_url, title=title):
                                 self.logger.info(f"Found post in database: {title}")
                                 return True
                             
@@ -140,7 +144,11 @@ class BotLogic:
                                 if (self.config['bot']['duplicate_detection']['auto_sync_to_database'] and 
                                     self.config['bot']['duplicate_detection']['check_database']):
                                     try:
-                                        self.db_handler.save_post(title, datetime.now().isoformat())
+                                        self.db_handler.save_post(
+                                            rss_url=rss_url or title,
+                                            title=title,
+                                            published_date=datetime.now().isoformat()
+                                        )
                                         self.logger.info(f"Added missing post to database: {title}")
                                     except Exception as e:
                                         self.logger.error(f"Failed to save post to database: {e}")
@@ -165,13 +173,21 @@ class BotLogic:
                 for entry in new_entries:
                     try:
                         self.logger.info(f"[{self.account_config.name}] Attempting to post: {entry.title}")
-                        self.post_handler.post_entry(entry)
+                        post_result = self.post_handler.post_entry(entry)
                         
                         # Save successful posts to database if enabled
                         if self.config['bot']['duplicate_detection']['check_database']:
                             try:
-                                self.db_handler.save_post(entry.title, entry.published.isoformat())
+                                self.db_handler.save_post(
+                                    rss_url=entry.link,
+                                    title=entry.title,
+                                    published_date=entry.published.isoformat(),
+                                    bluesky_uri=post_result.get('uri'),
+                                    bluesky_url=post_result.get('url')
+                                )
                                 self.logger.info(f"[{self.account_config.name}] Successfully saved to database: {entry.title}")
+                                if post_result.get('url'):
+                                    self.logger.info(f"[{self.account_config.name}] Bluesky post: {post_result.get('url')}")
                             except Exception as e:
                                 self.logger.error(f"[{self.account_config.name}] Failed to save post to database: {e}")
                             
