@@ -14,8 +14,7 @@ class DatabaseHandler:
         """
         self.account_name = account_name
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        self.create_table()
-        self.migrate_schema()
+        self.migrate_schema()  # Run migration first
 
     def create_table(self):
         """Create posts table with account_name column for multi-account support."""
@@ -39,17 +38,24 @@ class DatabaseHandler:
         """Migrate existing database schema to support multiple accounts."""
         cursor = self.conn.cursor()
         
-        # Check if account_name column exists
+        # First, ensure the table exists
+        cursor.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='posts'
+        """)
+        table_exists = cursor.fetchone() is not None
+        
+        if not table_exists:
+            # Fresh install - create the table with new schema
+            self.create_table()
+            return
+        
+        # Check if account_name column exists in existing table
         cursor.execute("PRAGMA table_info(posts)")
         columns = [column[1] for column in cursor.fetchall()]
         
         if 'account_name' not in columns:
-            # Add account_name column with default value
-            self.conn.execute('''
-                ALTER TABLE posts ADD COLUMN account_name TEXT NOT NULL DEFAULT 'default'
-            ''')
-            # Drop old unique constraint if it exists and create new one
-            # SQLite doesn't support dropping constraints directly, so we need to recreate the table
+            # Migration needed - recreate table with new schema
             self.conn.execute('''
                 CREATE TABLE posts_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
