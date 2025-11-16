@@ -4,8 +4,95 @@ import logging
 from settings import config
 import requests
 from bs4 import BeautifulSoup
+import re
 
 logger = logging.getLogger(__name__)
+
+def parse_facets(text: str):
+    """
+    Parse rich text facets (hashtags, mentions, URLs) from text.
+    Returns list of facets with byte offsets for Bluesky API.
+    
+    Based on: https://docs.bsky.app/docs/advanced-guides/post-richtext
+    """
+    facets = []
+    
+    # Encode text to UTF-8 to get proper byte offsets
+    text_bytes = text.encode('utf-8')
+    
+    # Parse hashtags: #word
+    # Pattern matches hashtags that don't start with a digit
+    hashtag_pattern = r'(?:^|\s)(#[^\d\s]\S*)(?=\s|$)?'
+    for match in re.finditer(hashtag_pattern, text):
+        hashtag = match.group(1)
+        # Get byte positions
+        start_char = match.start(1)
+        end_char = match.end(1)
+        
+        # Convert character positions to byte positions
+        byte_start = len(text[:start_char].encode('utf-8'))
+        byte_end = len(text[:end_char].encode('utf-8'))
+        
+        # Extract tag value (strip the # symbol)
+        tag = hashtag[1:]
+        
+        facets.append({
+            "index": {
+                "byteStart": byte_start,
+                "byteEnd": byte_end
+            },
+            "features": [{
+                "$type": "app.bsky.richtext.facet#tag",
+                "tag": tag
+            }]
+        })
+    
+    # Parse mentions: @handle.bsky.social
+    mention_pattern = r'(?:^|\s)(@[a-zA-Z0-9.-]+)(?=\s|$)?'
+    for match in re.finditer(mention_pattern, text):
+        mention = match.group(1)
+        start_char = match.start(1)
+        end_char = match.end(1)
+        
+        byte_start = len(text[:start_char].encode('utf-8'))
+        byte_end = len(text[:end_char].encode('utf-8'))
+        
+        # Extract handle (strip the @ symbol)
+        handle = mention[1:]
+        
+        facets.append({
+            "index": {
+                "byteStart": byte_start,
+                "byteEnd": byte_end
+            },
+            "features": [{
+                "$type": "app.bsky.richtext.facet#mention",
+                "did": handle  # Note: In production, you'd resolve handle to DID
+            }]
+        })
+    
+    # Parse URLs: http:// or https://
+    url_pattern = r'https?://[^\s]+'
+    for match in re.finditer(url_pattern, text):
+        url = match.group(0)
+        start_char = match.start()
+        end_char = match.end()
+        
+        byte_start = len(text[:start_char].encode('utf-8'))
+        byte_end = len(text[:end_char].encode('utf-8'))
+        
+        facets.append({
+            "index": {
+                "byteStart": byte_start,
+                "byteEnd": byte_end
+            },
+            "features": [{
+                "$type": "app.bsky.richtext.facet#link",
+                "uri": url
+            }]
+        })
+    
+    return facets if facets else None
 
 class PostHandler:
     def __init__(self, client):
@@ -115,24 +202,9 @@ class PostHandler:
         
         # Build text with embedded link - find where {link} appears and make it clickable
         formatted_text = post_format.format(title=title, link=link)
-        text_builder = client_utils.TextBuilder()
         
-        # Find the link in the formatted text and make it clickable
-        link_start = formatted_text.find(link)
-        if link_start != -1:
-            # Add text before link
-            if link_start > 0:
-                text_builder.text(formatted_text[:link_start])
-            # Add clickable link
-            text_builder.link(link, link)
-            # Add text after link
-            if link_start + len(link) < len(formatted_text):
-                text_builder.text(formatted_text[link_start + len(link):])
-        else:
-            # Fallback if link not found in format
-            text_builder.text(formatted_text)
-        
-        post_text = text_builder
+        # Parse facets from the text (hashtags, mentions, URLs)
+        facets = parse_facets(formatted_text)
 
         response = None
         embed = None
@@ -186,10 +258,10 @@ class PostHandler:
         # Send the post with embed (if available)
         try:
             if embed:
-                response = self.client.send_post(text=post_text, embed=embed)
+                response = self.client.send_post(text=formatted_text, facets=facets, embed=embed)
                 logger.info("Post with embed sent successfully")
             else:
-                response = self.client.send_post(text=post_text)
+                response = self.client.send_post(text=formatted_text, facets=facets)
                 logger.info("Text-only post sent successfully")
         except Exception as e:
             logger.error(f"Failed to send post: {e}")
@@ -197,7 +269,7 @@ class PostHandler:
             if embed:
                 logger.info("Retrying without embed...")
                 try:
-                    response = self.client.send_post(text=post_text)
+                    response = self.client.send_post(text=formatted_text, facets=facets)
                     logger.info("Text-only fallback post sent successfully")
                 except Exception as e2:
                     logger.error(f"Fallback post also failed: {e2}")
