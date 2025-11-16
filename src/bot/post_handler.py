@@ -55,13 +55,27 @@ class PostHandler:
                 if compressed_image:
                     try:
                         logger.info("Image compression successful, attempting to send post with image")
-                        # Send image with aspect ratio - note: send_images doesn't support aspect_ratio in this version
-                        # but we still compress with proper dimensions
-                        response = self.client.send_images(
-                            text=post_text, 
-                            images=[compressed_image['data']], 
-                            image_alts=[title]
-                        )
+                        
+                        # Upload the image blob
+                        upload_resp = self.client.upload_blob(compressed_image['data'])
+                        aspect_ratio = compressed_image['aspect_ratio']
+                        
+                        # Create the embed structure according to Bluesky docs
+                        # https://docs.bsky.app/docs/advanced-guides/posts#images-embeds
+                        embed = {
+                            "$type": "app.bsky.embed.images",
+                            "images": [{
+                                "alt": title,
+                                "image": upload_resp.blob,
+                                "aspectRatio": {
+                                    "width": aspect_ratio['width'],
+                                    "height": aspect_ratio['height']
+                                }
+                            }]
+                        }
+                        
+                        # Send post with the embed
+                        response = self.client.send_post(text=post_text, embed=embed)
                         logger.info("Post with image sent successfully")
                     except Exception as e:
                         logger.error(f"Failed to send post with image: {e}")
