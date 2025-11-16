@@ -151,13 +151,13 @@ class PostHandler:
                 }
                 logger.info("Using link card embed")
             else:
-                # Fallback to image embed if we have an image URL
+                 # Fallback to image embed if we have an image URL
                 image_url = entry.image_url
                 if image_url:
                     logger.info(f"No link card available, attempting image embed: {image_url}")
-                    compressed_image = download_and_compress_image(image_url)
-                    if compressed_image:
-                        try:
+                    try:
+                        compressed_image = download_and_compress_image(image_url)
+                        if compressed_image:
                             # Upload the image blob
                             upload_resp = self.client.upload_blob(compressed_image['data'])
                             aspect_ratio = compressed_image['aspect_ratio']
@@ -175,13 +175,13 @@ class PostHandler:
                                 }]
                             }
                             logger.info("Using image embed as fallback")
-                        except Exception as e:
-                            logger.error(f"Failed to create image embed: {e}")
-                            embed = None
-                    else:
-                        logger.warning("Image compression failed")
+                        else:
+                            logger.warning("Image compression failed, will post text-only")
+                    except Exception as e:
+                        logger.error(f"Failed to create image embed: {e}, will post text-only")
+                        embed = None
                 else:
-                    logger.info("No image URL available for fallback")
+                    logger.info("No image URL available, will post text-only")
         
         # Send the post with embed (if available)
         try:

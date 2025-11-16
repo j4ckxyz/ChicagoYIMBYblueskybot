@@ -13,6 +13,11 @@ def download_and_compress_image(image_url, max_size_kb=1000, max_retries=3, back
     Returns:
         dict: Contains 'data' (image bytes) and 'aspect_ratio' (width/height ratio), or None if failed
     """
+    # Skip SVG files - PIL can't handle them
+    if image_url.lower().endswith('.svg') or '.svg?' in image_url.lower():
+        logger.warning(f"Skipping SVG image (not supported): {image_url}")
+        return None
+    
     attempt = 0
     delay = initial_delay
 
@@ -21,7 +26,12 @@ def download_and_compress_image(image_url, max_size_kb=1000, max_retries=3, back
             response = requests.get(image_url, timeout=10)
             if response.status_code == 200:
                 # Process the image if download is successful
-                image = Image.open(BytesIO(response.content))
+                try:
+                    image = Image.open(BytesIO(response.content))
+                except Exception as e:
+                    logger.error(f"Cannot identify/open image file from {image_url}: {e}")
+                    return None
+                
                 original_width, original_height = image.size
                 
                 max_dimension = 1024
@@ -58,6 +68,9 @@ def download_and_compress_image(image_url, max_size_kb=1000, max_retries=3, back
 
         except requests.RequestException as e:
             logger.error(f"Error downloading image: {e}. Retrying...")
+        except Exception as e:
+            logger.error(f"Unexpected error processing image {image_url}: {e}")
+            return None
 
         attempt += 1
         time.sleep(delay)
