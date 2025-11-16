@@ -19,10 +19,22 @@ class RSSEntry:
         self.image_url = image_url
 
 def create_session():
-    """Create a requests session with retry logic."""
+    """Create a requests session with retry logic and browser-like headers."""
     session = requests.Session()
+    
+    # Add browser-like headers to avoid being blocked
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+    })
+    
     retry_strategy = Retry(
-        total=3,
+        total=2,  # Reduced from 3 to fail faster
         backoff_factor=1,
         status_forcelist=[429, 500, 502, 503, 504]
     )
@@ -34,6 +46,7 @@ def create_session():
 def fetch_image_url(article_url: str, session: requests.Session) -> str:
     """
     Extracts the header image URL from the article page based on configured sources.
+    Returns None if image cannot be fetched (403, timeout, etc.) - post will be text-only.
     """
     try:
         response = session.get(article_url, timeout=10)
@@ -56,9 +69,22 @@ def fetch_image_url(article_url: str, session: requests.Session) -> str:
             if element and element.get(attr_name):
                 return element[attr_name]
         
+        logger.debug(f"No image found in {article_url}")
+        return None
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 403:
+            logger.warning(f"Access forbidden (403) for {article_url} - posting without image")
+        else:
+            logger.error(f"HTTP error fetching image from {article_url}: {e.response.status_code}")
+        return None
+    except requests.exceptions.Timeout:
+        logger.warning(f"Timeout fetching image from {article_url} - posting without image")
+        return None
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Error fetching image from {article_url}: {e} - posting without image")
         return None
     except Exception as e:
-        logger.error(f"Error fetching image from {article_url}: {e}")
+        logger.error(f"Unexpected error fetching image from {article_url}: {e}")
         return None
 
 def fetch_new_rss_entries(is_posted_check: Callable[[str, str], bool], min_post_date: str, rss_feed_url: str) -> List[RSSEntry]:
