@@ -120,13 +120,17 @@ def fetch_new_rss_entries(is_posted_check: Callable[[str, str], bool], min_post_
                 logger.error(f"Error parsing date for entry {getattr(entry, 'title', 'unknown')}: {e}")
                 continue
         
-        # Sort by publication date (oldest first) so we post in chronological order
-        recent_entries.sort(key=lambda e: datetime(*e.published_parsed[:6]))
+        # Sort by publication date (newest first) to prioritize recent entries
+        recent_entries.sort(key=lambda e: datetime(*e.published_parsed[:6]), reverse=True)
         
         # Apply max_entries limit to prevent backfill explosion
+        # Take the NEWEST entries, not the oldest
         if max_entries and len(recent_entries) > max_entries:
-            logger.warning(f"Found {len(recent_entries)} entries since {min_post_date}, limiting to {max_entries} oldest entries")
+            logger.warning(f"Found {len(recent_entries)} entries since {min_post_date}, limiting to {max_entries} newest entries")
             recent_entries = recent_entries[:max_entries]
+        
+        # Reverse back to chronological order (oldest first) for posting
+        recent_entries.reverse()
         
         logger.info(f"Processing {len(recent_entries)} entries after date filter and limit")
 
