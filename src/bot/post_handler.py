@@ -1,6 +1,5 @@
-from atproto import client_utils, models
+from atproto import client_utils
 from utils.image_utils import download_and_compress_image
-from utils.rss_parser import fetch_image_url  # Import fetch_image_url
 import logging
 from settings import config
 
@@ -49,34 +48,19 @@ class PostHandler:
         # Only process images if the feature flag is enabled
         if config['bot'].get('include_images', True):
             # Access image_url directly as a property
-            image_url = entry.image_url or fetch_image_url(link)
+            image_url = entry.image_url
             if image_url:
                 logger.info(f"Attempting to download and compress image: {image_url}")
                 compressed_image = download_and_compress_image(image_url)
                 if compressed_image:
                     try:
                         logger.info("Image compression successful, attempting to send post with image")
-                        
-                        # Upload image blob with aspect ratio metadata
-                        upload_response = self.client.upload_blob(compressed_image['data'])
-                        aspect_ratio = compressed_image['aspect_ratio']
-                        
-                        # Create image embed with aspect ratio
-                        images = [
-                            models.AppBskyEmbedImages.Image(
-                                alt=title,
-                                image=upload_response.blob,
-                                aspect_ratio=models.AppBskyEmbedImages.AspectRatio(
-                                    width=aspect_ratio['width'],
-                                    height=aspect_ratio['height']
-                                )
-                            )
-                        ]
-                        
-                        # Send post with embedded image
-                        response = self.client.send_post(
-                            text=post_text,
-                            embed=models.AppBskyEmbedImages.Main(images=images)
+                        # Send image with aspect ratio - note: send_images doesn't support aspect_ratio in this version
+                        # but we still compress with proper dimensions
+                        response = self.client.send_images(
+                            text=post_text, 
+                            images=[compressed_image['data']], 
+                            image_alts=[title]
                         )
                         logger.info("Post with image sent successfully")
                     except Exception as e:
