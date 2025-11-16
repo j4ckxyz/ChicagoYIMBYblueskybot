@@ -162,7 +162,8 @@ class BotLogic:
                 new_entries = fetch_new_rss_entries(
                     is_already_posted_wrapper,
                     self.config['rss']['min_post_date'],
-                    self.account_config.rss_feed_url
+                    self.account_config.rss_feed_url,
+                    max_entries=self.config['bot'].get('max_backfill_entries')
                 )
                 
                 if not new_entries:

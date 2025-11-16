@@ -23,6 +23,7 @@ bot:
   max_retries: 5
   initial_delay: 10
   posts_to_check: 50  # Number of recent posts to check for duplicates
+  max_backfill_entries: 10  # Maximum number of old entries to post on first run
   include_images: true  # Feature flag to control whether posts include images
   post_format: "{title}\n\nRead more: {link}"  # Supports {title} and {link} placeholders
   duplicate_detection:

@@ -87,7 +87,7 @@ def fetch_image_url(article_url: str, session: requests.Session) -> str:
         logger.error(f"Unexpected error fetching image from {article_url}: {e}")
         return None
 
-def fetch_new_rss_entries(is_posted_check: Callable[[str, str], bool], min_post_date: str, rss_feed_url: str) -> List[RSSEntry]:
+def fetch_new_rss_entries(is_posted_check: Callable[[str, str], bool], min_post_date: str, rss_feed_url: str, max_entries: int = None) -> List[RSSEntry]:
     """
     Fetch new RSS entries that haven't been posted yet.
     
@@ -95,6 +95,7 @@ def fetch_new_rss_entries(is_posted_check: Callable[[str, str], bool], min_post_
         is_posted_check: Function to check if a title has been posted (takes title and rss_url)
         min_post_date: Minimum date string in format 'YYYY-MM-DD'
         rss_feed_url: URL of the RSS feed to parse
+        max_entries: Maximum number of entries to process (limits backfill on first run)
     """
     try:
         feed = feedparser.parse(rss_feed_url)
@@ -107,17 +108,33 @@ def fetch_new_rss_entries(is_posted_check: Callable[[str, str], bool], min_post_
         session = create_session()
 
         logger.info(f"Checking {len(feed.entries)} entries from RSS feed")
-
+        
+        # Filter entries by date first
+        recent_entries = []
         for entry in feed.entries:
+            try:
+                published = datetime(*entry.published_parsed[:6])
+                if published >= min_date:
+                    recent_entries.append(entry)
+            except Exception as e:
+                logger.error(f"Error parsing date for entry {getattr(entry, 'title', 'unknown')}: {e}")
+                continue
+        
+        # Sort by publication date (oldest first) so we post in chronological order
+        recent_entries.sort(key=lambda e: datetime(*e.published_parsed[:6]))
+        
+        # Apply max_entries limit to prevent backfill explosion
+        if max_entries and len(recent_entries) > max_entries:
+            logger.warning(f"Found {len(recent_entries)} entries since {min_post_date}, limiting to {max_entries} oldest entries")
+            recent_entries = recent_entries[:max_entries]
+        
+        logger.info(f"Processing {len(recent_entries)} entries after date filter and limit")
+
+        for entry in recent_entries:
             try:
                 title = entry.title
                 rss_url = entry.link
                 published = datetime(*entry.published_parsed[:6])
-
-                # Skip if too old
-                if published < min_date:
-                    logger.debug(f"Skipping old entry: {title} (published {published})")
-                    continue
                     
                 # Skip if already posted (pass both title and URL)
                 if is_posted_check(title, rss_url):
