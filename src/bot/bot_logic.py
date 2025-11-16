@@ -111,44 +111,48 @@ class BotLogic:
             self.logger.error(f"Error fetching recent posts: {e}")
             return []
 
-    def _is_already_posted(self, title: str) -> bool:
-        """
-        Check if a post with this title already exists based on configured duplicate detection settings.
-        """
-        try:
-            # Check database if enabled
-            if self.config['bot']['duplicate_detection']['check_database']:
-                if self.db_handler.is_posted(title):
-                    self.logger.info(f"Found post in database: {title}")
-                    return True
-                
-            # Check recent Bluesky posts if enabled
-            if self.config['bot']['duplicate_detection']['check_bluesky_backup']:
-                recent_posts = self._get_recent_posts()
-                if any(title.lower() in post.lower() for post in recent_posts):
-                    self.logger.info(f"Found post in recent Bluesky posts: {title}")
-                    # If database sync is enabled and database checking is enabled, sync the post
-                    if (self.config['bot']['duplicate_detection']['auto_sync_to_database'] and 
-                        self.config['bot']['duplicate_detection']['check_database']):
-                        try:
-                            self.db_handler.save_post(title, datetime.now().isoformat())
-                            self.logger.info(f"Added missing post to database: {title}")
-                        except Exception as e:
-                            self.logger.error(f"Failed to save post to database: {e}")
-                    return True
-                
-            return False
-        except Exception as e:
-            self.logger.error(f"Error checking if post exists: {e}")
-            return True  # Err on the side of caution
-
     def run(self):
         """Run the bot continuously at the specified interval."""
         while True:
             try:
                 self.logger.info(f"[{self.account_config.name}] Fetching new RSS entries...")
+                
+                # Fetch recent posts once at the beginning if Bluesky backup check is enabled
+                recent_posts = []
+                if self.config['bot']['duplicate_detection']['check_bluesky_backup']:
+                    recent_posts = self._get_recent_posts()
+                    self.logger.info(f"[{self.account_config.name}] Fetched {len(recent_posts)} recent posts for duplicate checking")
+                
+                # Create a wrapper function that uses the cached recent_posts
+                def is_already_posted_wrapper(title: str) -> bool:
+                    try:
+                        # Check database if enabled
+                        if self.config['bot']['duplicate_detection']['check_database']:
+                            if self.db_handler.is_posted(title):
+                                self.logger.info(f"Found post in database: {title}")
+                                return True
+                            
+                        # Check recent Bluesky posts if enabled (using cached posts)
+                        if self.config['bot']['duplicate_detection']['check_bluesky_backup']:
+                            if any(title.lower() in post.lower() for post in recent_posts):
+                                self.logger.info(f"Found post in recent Bluesky posts: {title}")
+                                # If database sync is enabled and database checking is enabled, sync the post
+                                if (self.config['bot']['duplicate_detection']['auto_sync_to_database'] and 
+                                    self.config['bot']['duplicate_detection']['check_database']):
+                                    try:
+                                        self.db_handler.save_post(title, datetime.now().isoformat())
+                                        self.logger.info(f"Added missing post to database: {title}")
+                                    except Exception as e:
+                                        self.logger.error(f"Failed to save post to database: {e}")
+                                return True
+                            
+                        return False
+                    except Exception as e:
+                        self.logger.error(f"Error checking if post exists: {e}")
+                        return True  # Err on the side of caution
+                
                 new_entries = fetch_new_rss_entries(
-                    self._is_already_posted,
+                    is_already_posted_wrapper,
                     self.config['rss']['min_post_date'],
                     self.account_config.rss_feed_url
                 )
