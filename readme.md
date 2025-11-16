@@ -25,9 +25,21 @@ cd ChicagoYIMBYblueskybot
 pip install -r requirements.txt
 ```
 
-### 3. Set Up Your Credentials
+### 3. Set Up Your Account
 
-Create a file named `.env` in the main folder with your login info:
+**Option A: Use the Account Manager (Recommended)**
+
+Run the easy account setup tool:
+
+```bash
+python3 manage_accounts.py
+```
+
+This will guide you through adding your account step-by-step!
+
+**Option B: Manual Setup**
+
+Create a file named `.env` in the main folder:
 
 ```env
 BLUESKY_USERNAME=yourname.bsky.social
@@ -40,33 +52,55 @@ RSS_FEED_URL=https://yoursite.com/feed
 ### 4. Run the Bot
 
 ```bash
-python src/main.py
+python3 src/main.py
 ```
 
 That's it! The bot will now check your RSS feed every 10 minutes and post new articles.
 
 ---
 
-## Advanced Setup
+## Managing Multiple Accounts
 
-### Multiple Accounts
+The bot makes it super easy to run multiple accounts!
 
-Want to post to multiple Bluesky accounts? No problem!
+### Using the Account Manager
 
-#### Step 1: Update `config.yaml`
+```bash
+python3 manage_accounts.py
+```
 
-Add your accounts to the `accounts` section:
+The account manager lets you:
+- ✅ **List all accounts** - See all configured accounts with their settings
+- ✅ **Add new accounts** - Guided setup for new accounts
+- ✅ **Remove accounts** - Delete accounts you don't need anymore
+
+### Adding an Account
+
+1. Run `python3 manage_accounts.py`
+2. Choose option **2** (Add new account)
+3. Enter your account details when prompted:
+   - Account name (like "chicago" or "housing")
+   - Bluesky username
+   - App password
+   - RSS feed URL
+   - Custom PDS URL (optional - press Enter to use default)
+
+Done! The tool automatically sets up everything for you.
+
+### Manual Multi-Account Setup
+
+If you prefer to edit files manually:
+
+**Step 1:** Add account names to `config.yaml`:
 
 ```yaml
 accounts:
-  - name: chicago
-  - name: housing
-  - name: urbanplanning
+  - chicago
+  - housing
+  - urbanplanning
 ```
 
-#### Step 2: Update `.env` with all account credentials
-
-For each account, add credentials with the pattern `ACCOUNTNAME_USERNAME`, `ACCOUNTNAME_PASSWORD`, and `ACCOUNTNAME_RSS_FEED_URL`:
+**Step 2:** Add credentials to `.env` for each account:
 
 ```env
 # Chicago account
@@ -74,7 +108,7 @@ CHICAGO_USERNAME=chicago.bsky.social
 CHICAGO_PASSWORD=app-password-1
 CHICAGO_RSS_FEED_URL=https://example.com/chicago-feed
 
-# Housing account
+# Housing account  
 HOUSING_USERNAME=housing.bsky.social
 HOUSING_PASSWORD=app-password-2
 HOUSING_RSS_FEED_URL=https://example.com/housing-feed
@@ -85,23 +119,26 @@ URBANPLANNING_PASSWORD=app-password-3
 URBANPLANNING_RSS_FEED_URL=https://example.com/planning-feed
 ```
 
-**Note:** The account name in your `.env` file must be UPPERCASE and match the name in `config.yaml`.
+**Note:** Account names in `.env` must be UPPERCASE. In `config.yaml` they should be lowercase.
 
-### Custom Bluesky Server (PDS)
+### Using a Custom Bluesky Server
 
-If you're using a custom Bluesky server instead of the main bsky.social server:
+If you're using a custom PDS server, add the PDS URL to your `.env`:
 
-```yaml
-accounts:
-  - name: myaccount
-    pds_url: "https://my-custom-server.com"
+```env
+MYACCOUNT_USERNAME=myname.bsky.social
+MYACCOUNT_PASSWORD=app-password
+MYACCOUNT_RSS_FEED_URL=https://example.com/feed
+MYACCOUNT_PDS_URL=https://my-custom-pds.com
 ```
+
+If you don't specify a PDS URL, it defaults to `https://bsky.social`.
 
 ---
 
 ## Configuration Options
 
-The `config.yaml` file has many options you can customize:
+The `config.yaml` file has settings you can customize:
 
 ### Basic Settings
 
@@ -137,7 +174,7 @@ bot:
 
 ## Features
 
-✅ **Easy Setup** - Just add your credentials and go  
+✅ **Easy Setup** - Use the account manager or simple config files  
 ✅ **Multiple Accounts** - Run as many accounts as you want  
 ✅ **Custom Servers** - Works with any Bluesky PDS  
 ✅ **Smart Images** - Automatically finds and includes article images  
@@ -150,7 +187,7 @@ bot:
 ## Troubleshooting
 
 ### Bot won't start
-- Make sure you've created a `.env` file with your credentials
+- Make sure you've created accounts using `python3 manage_accounts.py` or manually created `.env`
 - Check that your RSS feed URL is correct
 - Verify you're using an app password, not your main password
 
@@ -165,9 +202,9 @@ bot:
 - You can disable images by setting `include_images: false` in `config.yaml`
 
 ### Multiple accounts not working
-- Account names in `.env` must be UPPERCASE
-- Account names in `config.yaml` must be lowercase
-- Make sure each account has all three required variables (USERNAME, PASSWORD, RSS_FEED_URL)
+- Run `python3 manage_accounts.py` and choose option 1 to list accounts
+- Make sure each account shows all required info (username, password, RSS feed)
+- Check that account names in `config.yaml` match those in `.env` (but lowercase in YAML, uppercase in .env)
 
 ---
 
@@ -176,7 +213,7 @@ bot:
 1. Go to your Bluesky settings: https://bsky.app/settings/app-passwords
 2. Click "Add App Password"
 3. Give it a name (like "RSS Bot")
-4. Copy the password and paste it into your `.env` file
+4. Copy the password and paste it when the account manager asks, or into your `.env` file
 
 **Never use your main account password!**
 

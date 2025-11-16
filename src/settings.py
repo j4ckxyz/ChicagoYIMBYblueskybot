@@ -30,15 +30,15 @@ config = _load_config()
 class AccountConfig:
     """Configuration for a single Bluesky account."""
     
-    def __init__(self, name: str, pds_url: Optional[str] = None, env_prefix: Optional[str] = None):
+    def __init__(self, name: str):
         self.name = name
-        self.pds_url = pds_url or "https://bsky.social"
-        self.env_prefix = env_prefix or name.upper()
+        env_prefix = name.upper()
         
-        # Load credentials from environment variables
-        self.username = os.getenv(f"{self.env_prefix}_USERNAME")
-        self.password = os.getenv(f"{self.env_prefix}_PASSWORD")
-        self.rss_feed_url = os.getenv(f"{self.env_prefix}_RSS_FEED_URL")
+        # Load all account-specific settings from environment variables
+        self.username = os.getenv(f"{env_prefix}_USERNAME")
+        self.password = os.getenv(f"{env_prefix}_PASSWORD")
+        self.rss_feed_url = os.getenv(f"{env_prefix}_RSS_FEED_URL")
+        self.pds_url = os.getenv(f"{env_prefix}_PDS_URL", "https://bsky.social")
         
         # Fallback to legacy env vars if this is the default account and no specific vars exist
         if not self.username and name == "default":
@@ -60,16 +60,17 @@ def get_accounts() -> List[AccountConfig]:
     accounts = []
     
     if 'accounts' in config and config['accounts']:
-        for account_data in config['accounts']:
-            account = AccountConfig(
-                name=account_data.get('name', 'default'),
-                pds_url=account_data.get('pds_url'),
-                env_prefix=account_data.get('env_prefix')
-            )
+        for account_name in config['accounts']:
+            # Account names can be either strings or dicts (for backward compatibility)
+            if isinstance(account_name, dict):
+                account_name = account_name.get('name', 'default')
+            
+            account = AccountConfig(name=account_name)
             if account.is_valid():
                 accounts.append(account)
             else:
-                print(f"Warning: Account '{account.name}' is missing required credentials and will be skipped")
+                print(f"Warning: Account '{account_name}' is missing required credentials and will be skipped")
+                print(f"  Add to .env: {account_name.upper()}_USERNAME, {account_name.upper()}_PASSWORD, {account_name.upper()}_RSS_FEED_URL")
     else:
         # Fallback to legacy single account mode
         account = AccountConfig(name="default")
